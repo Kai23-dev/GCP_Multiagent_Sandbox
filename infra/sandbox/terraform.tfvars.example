@@ -1,0 +1,6 @@
+project_id      = "sco-agents-sandbox-1234"
+project_name    = "SCO Agents Sandbox"
+folder_id       = "012345678901"
+billing_account = "000000-000000-000000"
+region          = "us-central1"
+dataset_location = "US"

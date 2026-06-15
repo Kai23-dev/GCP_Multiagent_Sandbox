@@ -1,0 +1,1 @@
+Basing on the query create query to database which will help to create detailed visualization.

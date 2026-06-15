@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Test</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+    <h1>Google OAuth Test</h1>
+    <button id="signInBtn">Sign In with Google</button>
+    <div id="status"></div>
+    <div id="userInfo"></div>
+
+    <script>
+        const CLIENT_ID = '6885718459-3q28c7f872rol3tqt8h50k6pl6t716b0.apps.googleusercontent.com';
+        const SCOPES = 'https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+
+        let tokenClient;
+        let accessToken;
+
+        window.onload = function() {
+            console.log('Page loaded, initializing OAuth...');
+
+            // Wait for the Google Identity Services library to load
+            const checkGoogleLoaded = setInterval(() => {
+                if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+                    clearInterval(checkGoogleLoaded);
+                    initializeOAuth();
+                } else {
+                    console.log('Waiting for Google Identity Services to load...');
+                }
+            }, 100);
+        };
+
+        function initializeOAuth() {
+            console.log('Google Identity Services loaded, initializing token client...');
+
+            try {
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: (response) => {
+                        console.log('Token response:', response);
+                        if (response.error) {
+                            document.getElementById('status').innerHTML = `Error: ${response.error_description || response.error}`;
+                            return;
+                        }
+
+                        accessToken = response.access_token;
+                        document.getElementById('status').innerHTML = `Successfully signed in! Token: ${accessToken.substring(0, 20)}...`;
+
+                        // Fetch user info
+                        fetchUserInfo(accessToken);
+                    },
+                    error_callback: (error) => {
+                        console.error('Error callback:', error);
+                        document.getElementById('status').innerHTML = `Error: ${error.message}`;
+                    }
+                });
+
+                console.log('Token client initialized');
+                document.getElementById('status').innerHTML = 'OAuth initialized, ready to sign in';
+            } catch (error) {
+                console.error('Failed to initialize:', error);
+                document.getElementById('status').innerHTML = `Failed to initialize: ${error.message}`;
+            }
+        }
+
+        document.getElementById('signInBtn').addEventListener('click', () => {
+            console.log('Sign in button clicked');
+            if (!tokenClient) {
+                alert('OAuth not initialized yet. Please wait and try again.');
+                return;
+            }
+
+            console.log('Requesting access token...');
+            tokenClient.requestAccessToken({ prompt: 'consent' });
+        });
+
+        async function fetchUserInfo(token) {
+            try {
+                const response = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('userInfo').innerHTML = `
+                        <h2>User Info:</h2>
+                        <p>Email: ${data.email}</p>
+                        <p>Name: ${data.name}</p>
+                        <p>ID: ${data.id}</p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to fetch user info:', error);
+            }
+        }
+    </script>
+</body>
+</html>

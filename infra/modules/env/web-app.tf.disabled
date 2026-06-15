@@ -1,0 +1,46 @@
+# Web app deployed to Cloud Run with IAP authentication
+# IAP provides user identity via headers (X-Goog-Authenticated-User-Email)
+# Service account uses ADC to call Google Cloud APIs with proper permissions
+resource "google_cloud_run_v2_service" "sco_agents" {
+  provider            = google-beta
+  name                = "sco-agents-${var.env}"
+  location            = "us-central1"
+  deletion_protection = false
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  launch_stage        = "BETA"
+  iap_enabled         = true # IAP handles user authentication
+  project             = google_project_service.apis["run.googleapis.com"].project
+  template {
+    service_account = google_service_account.web_app.email
+    containers {
+      image = var.image_tag
+      ports {
+        container_port = 3000
+      }
+      resources {
+        limits = {
+          cpu    = "2"   # 2 vCPUs (can be: "1", "2", "4", "8")
+          memory = "2Gi" # 2GB RAM (can be: "512Mi", "1Gi", "2Gi", "4Gi", "8Gi", "16Gi", "32Gi")
+        }
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = google_project_service.apis["run.googleapis.com"].project
+      }
+      env {
+        name  = "GOOGLE_CLOUD_LOCATION"
+        value = "us-central1"
+      }
+      env {
+        name  = "NODE_ENV"
+        value = "production"
+      }
+      # No OAuth variables needed - IAP handles authentication
+    }
+  }
+  depends_on = [
+    google_project_iam_member.agentspace_iap,
+    google_project_iam_member.default_run_service_agent,
+    google_project_iam_member.robot_access,
+  ]
+}
