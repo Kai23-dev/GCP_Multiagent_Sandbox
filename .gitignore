@@ -155,3 +155,7 @@ run_local.sh
 trace-viewer/node_modules/
 trace-viewer/.next/
 trace-viewer/.env.local
+
+# Deployment state (contains project IDs — do not commit)
+deployed_agents_state.json
+.env.local
