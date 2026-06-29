@@ -48,6 +48,24 @@ At least one agent is already deployed (ID: `3931281834880532480`).
 ---
 
 ## Phase 7 — Web App (Company Laptop)
+## Contract Intelligence Validation Update
+
+Contract Intelligence was partially manually validated using available tables:
+- CONTRACT_METADATA
+- COUPA_INVOICES
+- IPRO_CATALOG
+- IPRO_ORDERS
+
+Validated checks:
+- Contract coverage for invoices
+- Missing contract detection
+- Invoice/catalog price variance
+- Order/catalog price variance
+- Contract utilization
+
+Full document-based validation is pending because the DOCUMENTS table is not available in the sandbox dataset.
+
+
 
 - [ ] Create `web-app/.env.local` with project ID and agent ID
 - [ ] Run `npm install && npm run dev`
