@@ -1,20 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "DaVita Agentspace",
-  description: "The DaVita Agentspace web application",
+  title: "Spend Intelligence Console | EY GDS SCO",
+  description: "Supplier Cost Optimisation — Multi-Agent Sandbox on Google Cloud Vertex AI",
 };
 
 export default function RootLayout({
@@ -24,9 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body style={{ fontFamily: '"Segoe UI", Arial, sans-serif', margin: 0, padding: 0 }}>
         {children}
       </body>
     </html>

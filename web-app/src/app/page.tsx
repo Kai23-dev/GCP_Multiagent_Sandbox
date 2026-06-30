@@ -1,5 +1,5 @@
-import ChatInterfaceEnhanced from '@/components/ChatInterfaceEnhanced';
+import SpendIntelligenceConsole from '@/components/SpendIntelligenceConsole';
 
 export default function Home() {
-  return <ChatInterfaceEnhanced />;
+  return <SpendIntelligenceConsole />;
 }
