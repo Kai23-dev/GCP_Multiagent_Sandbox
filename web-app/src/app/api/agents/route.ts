@@ -167,12 +167,34 @@ async function updateAgentsCache() {
   }
 }
 
-if (!(globalThis as Record<string, unknown>).agentsCacheInterval) {
+// Only start background cache polling when NOT in sandbox fallback mode.
+// In fallback/dev mode we never call OAuth, so no polling needed.
+const isSandboxFallbackMode =
+  process.env.ENABLE_SANDBOX_FALLBACK_AGENTS === 'true' ||
+  process.env.NODE_ENV === 'development';
+
+if (!isSandboxFallbackMode && !(globalThis as Record<string, unknown>).agentsCacheInterval) {
   (globalThis as Record<string, unknown>).agentsCacheInterval = setInterval(updateAgentsCache, CACHE_DURATION);
 }
 
 export async function GET(request: NextRequest) {
   try {
+    // ── Sandbox / development fast-path ──────────────────────────────────────
+    // If ENABLE_SANDBOX_FALLBACK_AGENTS=true OR NODE_ENV=development,
+    // skip all OAuth/GCP calls entirely and return fallback agents immediately.
+    // This avoids Zscaler SSL errors and quota issues on the personal laptop.
+    if (isSandboxFallbackMode) {
+      console.log('[agents] Sandbox fallback mode active — skipping GCP OAuth');
+      return NextResponse.json({
+        agents: SANDBOX_FALLBACK_AGENTS,
+        success: true,
+        isFallback: true,
+        mode: 'Manual Validation Mode',
+        message: 'Running in Sandbox Validation Mode. No live GCP agents connected.',
+      });
+    }
+
+    // ── Production path (GCP OAuth + Vertex AI) ───────────────────────────────
     const now = Date.now();
     const cacheAge = now - agentsCache.timestamp;
     const isCacheValid = agentsCache.data && cacheAge < CACHE_DURATION;
