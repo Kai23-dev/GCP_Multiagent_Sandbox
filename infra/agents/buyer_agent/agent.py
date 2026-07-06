@@ -81,7 +81,8 @@ def _call_remote_agent(resource_name: str, query: str) -> str:
         trace_ctx = trace.get_current_span().get_span_context()
         trace_id = format(trace_ctx.trace_id, '032x') if trace_ctx.trace_id else ''
 
-        api_endpoint = f"https://{location}-aiplatform.googleapis.com/v1beta1/{resource_name}:streamQuery"
+        base_url = os.environ.get("VERTEX_API_BASE", f"https://{location}-aiplatform.googleapis.com")
+        api_endpoint = f"{base_url}/v1beta1/{resource_name}:streamQuery"
         
         headers = {
             "Authorization": f"Bearer {token}",

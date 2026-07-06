@@ -79,8 +79,9 @@ def _call_remote_agent(resource_name: str, query: str) -> str:
             trace_ctx = trace.get_current_span().get_span_context()
             trace_id = format(trace_ctx.trace_id, '032x') if trace_ctx.trace_id else ''
 
-            # Build the REST API URL
-            api_endpoint = f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com/v1beta1/{resource_name}:streamQuery"
+            # Build the REST API URL (honor VERTEX_API_BASE for local/GKE loopback)
+            base_url = os.environ.get("VERTEX_API_BASE", f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com")
+            api_endpoint = f"{base_url}/v1beta1/{resource_name}:streamQuery"
             headers = {
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",

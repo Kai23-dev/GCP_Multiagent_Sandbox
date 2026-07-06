@@ -59,6 +59,11 @@ def load_agents():
             os.environ["SUPPLIER_CLASSIFICATION_AGENT_RESOURCE"] = "supplier_classification_agent"
             os.environ["CONTRACT_INTELLIGENCE_AGENT_RESOURCE"] = "contract_intelligence_agent"
             os.environ["FINANCIAL_LEAKAGE_AGENT_RESOURCE"] = "financial_leakage_agent"
+            # Shared SQL sub-agents — so domain agents build their SQL tools and
+            # delegate to them over the loopback instead of real Reasoning Engines.
+            os.environ["SQL_GENERATION_AGENT_RESOURCE"] = "sql_generation_agent"
+            os.environ["VALIDATION_AGENT_RESOURCE"] = "validation_agent"
+            os.environ["SQL_EXECUTION_AGENT_RESOURCE"] = "sql_execution_agent"
             os.environ["VERTEX_API_BASE"] = "http://127.0.0.1:8000"
             
             spec = importlib.util.spec_from_file_location(agent_key, agent_path)
