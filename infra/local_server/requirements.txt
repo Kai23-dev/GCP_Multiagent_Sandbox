@@ -12,3 +12,6 @@ cloudpickle>=3.1.2
 python-multipart>=0.0.6
 httpx>=0.25.0
 google-cloud-bigquery>=3.0.0
+google-cloud-storage>=3.6.0
+toolbox-core>=0.5.3
+opentelemetry-api>=1.20.0

@@ -271,6 +271,15 @@ npm run dev
 
 ---
 
+## Running Locally (No Agent Engine / MCP Toolbox / Cloud Run IAM)
+
+If your sandbox project can't provision the Terraform module, the GenAI MCP
+toolbox, or Cloud Run invoker IAM, the agents can run as plain Python/ADK
+processes on your laptop instead, reaching BigQuery and Vertex AI Gemini
+directly via your own `gcloud` credentials. See **[docs/run_local.md](docs/run_local.md)**.
+
+---
+
 ## Sandbox Environment
 
 The `infra/sandbox/` directory contains a self-contained Terraform configuration for GCP sandbox deployment, intentionally decoupled from the production CI/CD pipeline.
