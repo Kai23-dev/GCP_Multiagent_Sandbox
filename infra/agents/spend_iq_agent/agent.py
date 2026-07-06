@@ -74,8 +74,8 @@ def get_id_token(audience: str) -> str:
                     headers = {"Metadata-Flavor": "Google"}
                     response = requests.get(metadata_url, params=params, headers=headers)
                     fetched_token = response.text
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Token expiry re-mint check skipped: %s", exc)
 
         return fetched_token
     except DefaultCredentialsError:

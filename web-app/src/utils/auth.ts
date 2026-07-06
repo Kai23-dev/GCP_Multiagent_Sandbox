@@ -10,12 +10,52 @@
  * and the service account has necessary GCP permissions.
  */
 
-import { GoogleAuth } from 'google-auth-library';
+import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 
 // Scopes needed for GCP services
 const DEFAULT_SCOPES = [
   'https://www.googleapis.com/auth/cloud-platform',
 ];
+
+// Treat Cloud Run (K_SERVICE) or NODE_ENV=production as a real deployment where
+// authentication must never fall back to an anonymous identity.
+const IS_PRODUCTION =
+  process.env.NODE_ENV === 'production' || !!process.env.K_SERVICE;
+
+// Optional: when set, the signed IAP JWT assertion is cryptographically verified.
+// Value must be the IAP audience, e.g.
+// "/projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID".
+const IAP_JWT_AUDIENCE = process.env.IAP_JWT_AUDIENCE || '';
+
+const iapClient = new OAuth2Client();
+
+/**
+ * Verify the signed IAP JWT assertion header and return the authenticated email.
+ * Returns null when no assertion is present. Throws when an assertion is present
+ * but fails verification. Only enforced when IAP_JWT_AUDIENCE is configured.
+ */
+export async function verifyIapAssertion(
+  request: Request
+): Promise<{ userId: string; email: string } | null> {
+  const assertion = request.headers.get('X-Goog-IAP-JWT-Assertion') ||
+                    request.headers.get('x-goog-iap-jwt-assertion');
+  if (!assertion) return null;
+  if (!IAP_JWT_AUDIENCE) return null; // verification not configured
+
+  const ticket = await iapClient.getIapPublicKeys().then((keys) =>
+    iapClient.verifySignedJwtWithCertsAsync(
+      assertion,
+      keys.pubkeys,
+      IAP_JWT_AUDIENCE,
+      ['https://cloud.google.com/iap']
+    )
+  );
+  const payload = ticket.getPayload();
+  if (!payload?.email) {
+    throw new Error('IAP assertion missing verified email');
+  }
+  return { userId: payload.sub || payload.email.split('@')[0], email: payload.email };
+}
 
 /**
  * Get an authenticated GoogleAuth client using ADC
@@ -95,10 +135,16 @@ export function getUserFromIAPHeaders(request: Request): { userId: string; email
     return { userId, email: cleanEmail };
   }
 
-  // Development: Use environment variable or default
+  // Fail closed in production: a missing IAP identity header means the request
+  // did not pass through IAP, so it must not be treated as authenticated.
+  if (IS_PRODUCTION) {
+    throw new Error('Unauthenticated: missing IAP identity headers');
+  }
+
+  // Development only: use environment variable or default.
   const devEmail = process.env.DEV_USER_EMAIL || 'developer@example.com';
   const devUserId = devEmail.split('@')[0].replace(/[^a-zA-Z0-9]/g, '_');
-  
+
   console.log(`Development User: ${devEmail} (${devUserId})`);
   return { userId: devUserId, email: devEmail };
 }

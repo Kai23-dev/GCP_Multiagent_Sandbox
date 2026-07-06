@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthHeaders, getUserFromIAPHeaders } from '@/utils/auth';
+import { getAuthHeaders, getUserFromIAPHeaders, verifyIapAssertion } from '@/utils/auth';
 import { getCachedSession, clearUserSessions } from '@/utils/session-cache';
 
 interface AgentEngineRequest {
@@ -48,8 +48,14 @@ async function queryAgentWithAPI(
 
     if (agentCheckResponse.ok) {
       const agentData = await agentCheckResponse.json();
+      // Optional allowlist of known ADK reasoning-engine IDs, supplied via env
+      // (comma-separated) rather than hardcoded in source.
+      const knownAdkAgentIds = (process.env.ADK_AGENT_IDS || '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
       const isADKAgent = agentData.spec?.agentFramework === 'google-adk' ||
-                         ['607906784857817088', '5846085732698947584', '2701781544422342656', '1788443623507886080'].includes(agentId);
+                         knownAdkAgentIds.includes(agentId);
 
       if (isADKAgent) {
         // ADK agents require the class_method parameter and session management
@@ -546,8 +552,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user information from IAP headers for personalized sessions
-    const userInfo = getUserFromIAPHeaders(request);
+    // Authenticate the caller. Prefer the cryptographically-verified IAP JWT
+    // assertion; otherwise fall back to identity headers (which fail closed in
+    // production). Any auth failure returns 401 instead of an anonymous session.
+    let userInfo: { userId: string; email: string };
+    try {
+      userInfo = (await verifyIapAssertion(request)) ?? getUserFromIAPHeaders(request);
+    } catch (authError) {
+      console.warn('Authentication failed:', authError);
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     // Handle session clearing if requested
     if (clearSession) {

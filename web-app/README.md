@@ -35,7 +35,7 @@ npm install
 Copy the example environment file and configure it:
 
 ```bash
-cp env.example .env.local
+cp ../.env.example .env.local
 ```
 
 Edit `.env.local` with your Google Cloud configuration:

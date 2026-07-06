@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import atexit
+import re
 import signal
 import subprocess
 import sys
@@ -32,6 +33,33 @@ logger.info("SQL Execution Agent loading...")
 GENAI_MCP_URL = os.environ.get("GENAI_MCP_URL") or ""
 TOOLBOX_BQ_PROJECT_ID = os.environ.get("SCO_KB_PROJECT_ID") or ""
 logger.info("Toolbox config: url=%s, bq_project=%s", bool(GENAI_MCP_URL), TOOLBOX_BQ_PROJECT_ID)
+
+
+# SQL keys that may carry a query across the various toolbox tools.
+_SQL_KWARG_KEYS = ("query", "sql", "statement", "validated_sql_query")
+
+
+def _strip_sql_comments(sql: str) -> str:
+    """Remove block and line comments so keyword checks can't be bypassed."""
+    sql = re.sub(r"/\*.*?\*/", " ", sql, flags=re.DOTALL)
+    sql = re.sub(r"--[^\n]*", " ", sql)
+    return sql
+
+
+def _is_read_only_sql(sql: str) -> bool:
+    """Hard guard: every statement must be a read-only SELECT/WITH query.
+
+    This blocks DDL/DML (CREATE/DROP/INSERT/UPDATE/DELETE/MERGE/...) and stacked
+    statement injection (e.g. ``SELECT 1; DROP TABLE t``) in code, rather than
+    relying on the LLM instruction alone.
+    """
+    if not isinstance(sql, str):
+        return False
+    cleaned = _strip_sql_comments(sql)
+    statements = [s.strip() for s in cleaned.split(";") if s.strip()]
+    if not statements:
+        return False
+    return all(re.match(r"^(SELECT|WITH)\b", s, re.IGNORECASE) for s in statements)
 
 
 def get_id_token(audience: str) -> str:
@@ -104,8 +132,8 @@ if GENAI_MCP_URL:
         if TOOLBOX_BQ_PROJECT_ID:
             try:
                 tools = [t.bind_params({"project_id": TOOLBOX_BQ_PROJECT_ID}) for t in tools]
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Could not bind project_id to toolset tools: %s", exc)
 
         return {_canonical_tool_name(t.__name__): t for t in tools}
 
@@ -177,12 +205,21 @@ if GENAI_MCP_URL:
 
             logger.info("Tool call: %s (user=%s)", tool_name, user_id)
 
-            # Log SQL queries for testing
-            for key in ["query", "sql", "statement", "validated_sql_query"]:
-                if key in kwargs:
+            # Hard read-only enforcement: reject any DDL/DML before execution.
+            for key in _SQL_KWARG_KEYS:
+                if key in kwargs and isinstance(kwargs[key], str):
                     sql = kwargs[key]
-                    if isinstance(sql, str) and sql.strip().upper().startswith(("SELECT", "WITH")):
-                        logger.info("Executing SQL:\n%s", sql)
+                    if not _is_read_only_sql(sql):
+                        logger.warning(
+                            "Blocked non-read-only SQL for tool %s (user=%s)",
+                            tool_name, user_id,
+                        )
+                        return (
+                            "Error: Only read-only SELECT/WITH queries are permitted. "
+                            "DDL/DML statements (CREATE, DROP, INSERT, UPDATE, DELETE, "
+                            "MERGE, ...) and multi-statement queries are blocked."
+                        )
+                    logger.info("Executing SQL:\n%s", sql)
                     break
 
             result = user_tool(**kwargs)
