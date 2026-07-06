@@ -317,12 +317,69 @@ Queries referencing either dataset are allowed and expected. Do NOT reject queri
 Be efficient, secure, and transparent in your execution reporting.
 """
 
+# Local/direct BigQuery fallback: when the GenAI MCP toolbox is NOT configured
+# (running locally or on GKE without the toolbox), execute read-only SQL directly
+# against BigQuery using Application Default Credentials.
+local_bq_tools: list = []
+if not genai_mcp_tools:
+    _BQ_PROJECT = (
+        os.environ.get("SCO_KB_PROJECT_ID")
+        or os.environ.get("BQ_PROJECT")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        or ""
+    )
+    _BQ_LOCATION = os.environ.get("BQ_LOCATION", "US")
+    _BQ_MAX_BYTES = int(os.environ.get("BQ_MAX_BYTES_BILLED", str(50 * 1024 ** 3)))
+
+    def execute_sql(query: str) -> str:
+        """Execute a read-only BigQuery SQL query and return the results.
+
+        Only SELECT/WITH statements are permitted (DDL/DML are blocked).
+
+        Args:
+            query: The SQL SELECT/WITH statement to run.
+
+        Returns:
+            The query results as a markdown table, or an error message.
+        """
+        if not _is_read_only_sql(query):
+            return (
+                "Error: Only read-only SELECT/WITH queries are permitted. "
+                "DDL/DML and multi-statement queries are blocked."
+            )
+        try:
+            from google.cloud import bigquery
+        except ImportError:
+            return "Error: google-cloud-bigquery is not installed."
+        try:
+            client = bigquery.Client(project=_BQ_PROJECT or None)
+            job_config = bigquery.QueryJobConfig(maximum_bytes_billed=_BQ_MAX_BYTES)
+            job = client.query(query, location=_BQ_LOCATION, job_config=job_config)
+            rows = list(job.result())
+            if not rows:
+                return "Query executed successfully. 0 rows returned."
+            headers = list(rows[0].keys())
+            lines = [
+                "| " + " | ".join(headers) + " |",
+                "| " + " | ".join(["---"] * len(headers)) + " |",
+            ]
+            for r in rows[:200]:
+                lines.append("| " + " | ".join(str(r.get(h)) for h in headers) + " |")
+            note = "" if len(rows) <= 200 else f"\n\n_Showing first 200 of {len(rows)} rows._"
+            return "\n".join(lines) + note
+        except Exception as e:
+            logger.error("Local BigQuery execution failed: %s", e)
+            return f"Error executing query: {type(e).__name__}: {e}"
+
+    local_bq_tools = [execute_sql]
+    logger.info("Local direct-BigQuery execute_sql tool enabled (project=%s)", _BQ_PROJECT)
+
 root_agent = Agent(
     name="sql_execution_agent",
     model="gemini-2.5-flash",
     description="Agent that executes validated SQL queries against BigQuery and returns formatted results.",
     instruction=instruction,
-    tools=[*genai_mcp_tools],
+    tools=[*genai_mcp_tools, *local_bq_tools],
     generate_content_config=types.GenerateContentConfig(
         temperature=0.0,
         http_options=types.HttpOptions(

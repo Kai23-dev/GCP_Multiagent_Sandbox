@@ -125,7 +125,8 @@ def _get_auth_headers() -> dict:
 
 def _create_remote_session(resource_name: str, user_id: str) -> str:
     """Create a new session on a remote agent and return its session ID."""
-    api_endpoint = f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com/v1beta1/{resource_name}:query"
+    base_url = os.environ.get("VERTEX_API_BASE", f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com")
+    api_endpoint = f"{base_url}/v1beta1/{resource_name}:query"
     payload = {
         "input": {"user_id": user_id},
         "class_method": "create_session",
@@ -160,7 +161,8 @@ def _call_remote_agent(resource_name: str, query: str, session_id: str = "", use
             },
         ) as span:
           try:
-            api_endpoint = f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com/v1beta1/{resource_name}:streamQuery"
+            base_url = os.environ.get("VERTEX_API_BASE", f"https://{GOOGLE_CLOUD_LOCATION}-aiplatform.googleapis.com")
+            api_endpoint = f"{base_url}/v1beta1/{resource_name}:streamQuery"
             input_data = {"message": query, "user_id": user_id}
             if session_id:
                 input_data["session_id"] = session_id

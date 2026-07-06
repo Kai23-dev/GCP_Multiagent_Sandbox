@@ -1,0 +1,14 @@
+fastapi>=0.100.0
+uvicorn>=0.23.0
+sse-starlette>=1.6.5
+pydantic>=2.0.0
+google-adk>=1.30.0
+google-genai>=1.72.0
+google-cloud-aiplatform[agent-engines]>=1.147.0
+protobuf>=6.31.1
+google-auth>=2.49.0
+mcp>=1.27.0
+cloudpickle>=3.1.2
+python-multipart>=0.0.6
+httpx>=0.25.0
+google-cloud-bigquery>=3.0.0

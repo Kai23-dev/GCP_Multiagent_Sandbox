@@ -50,8 +50,11 @@ async function* streamAgentQuery(
 
     const agentResourceName = `projects/${projectId}/locations/${location}/reasoningEngines/${agentId}`;
 
+    // Support local FastAPI backend via AGENT_BACKEND_URL
+    const baseUrl = process.env.AGENT_BACKEND_URL || `https://${location}-aiplatform.googleapis.com`;
+
     // Check if this is an ADK agent
-    const agentUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/${agentResourceName}`;
+    const agentUrl = `${baseUrl}/v1beta1/${agentResourceName}`;
     const agentCheckResponse = await fetch(agentUrl, { headers });
 
     if (!agentCheckResponse.ok) {
@@ -60,7 +63,8 @@ async function* streamAgentQuery(
 
     const agentData = await agentCheckResponse.json();
     const isADKAgent = agentData.spec?.agentFramework === 'google-adk' ||
-                       ['607906784857817088', '5846085732698947584', '2701781544422342656', '1788443623507886080'].includes(agentId);
+                       ['607906784857817088', '5846085732698947584', '2701781544422342656', '1788443623507886080'].includes(agentId) ||
+                       !!process.env.AGENT_BACKEND_URL; // Local backend always mocks ADK agents
 
     console.log('Agent framework:', agentData.spec?.agentFramework);
 
@@ -78,7 +82,7 @@ async function* streamAgentQuery(
       if (!isValidADKSession) {
         // Create a new session using async_create_session
         console.log('Creating new ADK session...');
-        const queryUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/${agentResourceName}:query`;
+        const queryUrl = `${baseUrl}/v1beta1/${agentResourceName}:query`;
 
         const createSessionResponse = await fetch(queryUrl, {
           method: 'POST',
@@ -124,7 +128,7 @@ async function* streamAgentQuery(
       }
 
       // Step 2: Query with async_stream_query using the session
-      const streamQueryUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/${agentResourceName}:streamQuery?alt=sse`;
+      const streamQueryUrl = `${baseUrl}/v1beta1/${agentResourceName}:streamQuery?alt=sse`;
 
       console.log('Sending message to ADK agent with session:', sessionIdToUse);
       const streamResponse = await fetch(streamQueryUrl, {
@@ -207,7 +211,7 @@ async function* streamAgentQuery(
 
 
     // Non-ADK agent handling
-    const queryUrl = `https://${location}-aiplatform.googleapis.com/v1beta1/${agentResourceName}:query`;
+    const queryUrl = `${baseUrl}/v1beta1/${agentResourceName}:query`;
 
     // Try with input struct format
     let response = await fetch(queryUrl, {

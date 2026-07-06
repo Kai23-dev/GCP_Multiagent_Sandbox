@@ -1,0 +1,46 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-backend
+  labels:
+    app: agent-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-backend
+  template:
+    metadata:
+      labels:
+        app: agent-backend
+    spec:
+      # NOTE: for BigQuery + Vertex AI access on GKE, bind this pod's
+      # ServiceAccount to a GSA via Workload Identity (roles/bigquery.jobUser,
+      # roles/bigquery.dataViewer, roles/aiplatform.user). Then set
+      # serviceAccountName below to that KSA.
+      # serviceAccountName: agent-backend-ksa
+      containers:
+      - name: agent-backend
+        image: gcr.io/gp-ct-sbox-con-sbp0i2-eyenterp/agent-backend:latest
+        ports:
+        - containerPort: 8000
+        env:
+        - name: GOOGLE_CLOUD_PROJECT
+          value: "gp-ct-sbox-con-sbp0i2-eyenterp"
+        - name: GOOGLE_CLOUD_LOCATION
+          value: "us-central1"
+        - name: GOOGLE_GENAI_USE_VERTEXAI
+          value: "TRUE"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-backend-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: agent-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
