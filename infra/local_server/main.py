@@ -148,28 +148,44 @@ async def stream_query_agent(resource_name: str, request: Request):
     # Handle async aliases
     if class_method == "async_stream_query": class_method = "stream_query"
     
+    # Mirror the real Vertex Reasoning Engine API:
+    #   - default (no alt):   newline-delimited JSON (NDJSON), one object per line
+    #   - ?alt=sse:           Server-Sent Events ("data: {...}\n\n")
+    # The Python inter-agent clients call :streamQuery (NDJSON) and json.loads
+    # each line; the web-app calls :streamQuery?alt=sse. Emitting SSE in both
+    # cases silently breaks every inter-agent call ("No response from agent").
+    use_sse = request.query_params.get("alt") == "sse"
+
     try:
         method = getattr(agent, class_method)
         result_stream = method(**input_kwargs)
-        
+
         async def event_generator() -> AsyncGenerator[str, None]:
             # Convert sync generator to async generator for FastAPI
             try:
                 for chunk in result_stream:
-                    # Format as JSON string for each SSE chunk
+                    # AdkApp.stream_query yields dict events; wrap bare strings.
                     if isinstance(chunk, str):
                         data_chunk = {"text": chunk}
                     else:
                         data_chunk = chunk
-                        
-                    yield f"data: {json.dumps(data_chunk)}\n\n"
+
+                    if use_sse:
+                        yield f"data: {json.dumps(data_chunk)}\n\n"
+                    else:
+                        yield json.dumps(data_chunk) + "\n"
             except Exception as e:
                 logger.error(f"Stream error: {e}", exc_info=True)
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                
-            yield "data: [DONE]\n\n"
-            
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+                if use_sse:
+                    yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                else:
+                    yield json.dumps({"error": str(e)}) + "\n"
+
+            if use_sse:
+                yield "data: [DONE]\n\n"
+
+        media_type = "text/event-stream" if use_sse else "application/json"
+        return StreamingResponse(event_generator(), media_type=media_type)
     except Exception as e:
         logger.error(f"Error executing {class_method} on {agent_key}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
