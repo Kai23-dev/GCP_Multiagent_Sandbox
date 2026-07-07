@@ -53,18 +53,24 @@ def load_agents():
             # Route Gemini inference through Vertex AI using ADC (not an API key).
             os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "TRUE")
             
-            os.environ["AUDITOR_AGENT_RESOURCE"] = "auditor_agent"
-            os.environ["BUYER_AGENT_RESOURCE"] = "buyer_agent"
-            os.environ["TREND_AGENT_RESOURCE"] = "trend_agent"
-            os.environ["SUPPLIER_CLASSIFICATION_AGENT_RESOURCE"] = "supplier_classification_agent"
-            os.environ["CONTRACT_INTELLIGENCE_AGENT_RESOURCE"] = "contract_intelligence_agent"
-            os.environ["FINANCIAL_LEAKAGE_AGENT_RESOURCE"] = "financial_leakage_agent"
+            # Resource "names" the loopback resolves to agent keys. Use setdefault
+            # so a value already provided in the environment (e.g. sourced from
+            # local.env) is respected rather than overwritten.
+            os.environ.setdefault("AUDITOR_AGENT_RESOURCE", "auditor_agent")
+            os.environ.setdefault("BUYER_AGENT_RESOURCE", "buyer_agent")
+            os.environ.setdefault("TREND_AGENT_RESOURCE", "trend_agent")
+            os.environ.setdefault("SUPPLIER_CLASSIFICATION_AGENT_RESOURCE", "supplier_classification_agent")
+            os.environ.setdefault("CONTRACT_INTELLIGENCE_AGENT_RESOURCE", "contract_intelligence_agent")
+            os.environ.setdefault("FINANCIAL_LEAKAGE_AGENT_RESOURCE", "financial_leakage_agent")
             # Shared SQL sub-agents — so domain agents build their SQL tools and
             # delegate to them over the loopback instead of real Reasoning Engines.
-            os.environ["SQL_GENERATION_AGENT_RESOURCE"] = "sql_generation_agent"
-            os.environ["VALIDATION_AGENT_RESOURCE"] = "validation_agent"
-            os.environ["SQL_EXECUTION_AGENT_RESOURCE"] = "sql_execution_agent"
-            os.environ["VERTEX_API_BASE"] = "http://127.0.0.1:8000"
+            os.environ.setdefault("SQL_GENERATION_AGENT_RESOURCE", "sql_generation_agent")
+            os.environ.setdefault("VALIDATION_AGENT_RESOURCE", "validation_agent")
+            os.environ.setdefault("SQL_EXECUTION_AGENT_RESOURCE", "sql_execution_agent")
+            # Domain agents inside THIS process must call back into THIS server.
+            # Default to the port we listen on; honor an explicit override.
+            _self_port = os.environ.get("PORT", "8000")
+            os.environ.setdefault("VERTEX_API_BASE", f"http://127.0.0.1:{_self_port}")
             
             spec = importlib.util.spec_from_file_location(agent_key, agent_path)
             module = importlib.util.module_from_spec(spec)

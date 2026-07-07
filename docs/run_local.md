@@ -24,33 +24,45 @@ Your sandbox account needs, at minimum:
 - `roles/bigquery.dataViewer` + `roles/bigquery.jobUser` (query the dataset)
 - `roles/aiplatform.user` (Gemini inference via Vertex AI)
 
-## Run it — two terminals
-
-**Terminal 1 — local agent backend** (loads every agent, talks to BigQuery/Vertex AI directly):
+## Configure once
 
 ```bash
-export GOOGLE_CLOUD_PROJECT=<YOUR_SANDBOX_PROJECT_ID>
-export GOOGLE_CLOUD_LOCATION=us-central1
-export BQ_DATASET=ai_financial_dlp
-export BQ_LOCATION=US
+cp infra/local_server/local.env.example infra/local_server/local.env
+# edit local.env and set GOOGLE_CLOUD_PROJECT to your sandbox project id
+```
+
+## Run it — two terminals
+
+Both terminals must `source` the same env file. This matters: `adk web` runs
+the `spend_iq` orchestrator, which reads the `*_AGENT_RESOURCE` vars from **its
+own** process to decide which sub-agents to build. If you set them in only one
+terminal, `spend_iq` loads with zero sub-agents and can't delegate.
+
+**Terminal 1 — local agent backend** (loads every agent; talks to BigQuery/Vertex AI directly):
+
+```bash
+set -a; source infra/local_server/local.env; set +a
 export PORT=8001
 python infra/local_server/main.py
 ```
 
 Wait for `Successfully loaded agent: spend_iq_agent` (and the other agents) in
-the log. `SQL_GENERATION_AGENT_RESOURCE`, `VALIDATION_AGENT_RESOURCE`,
-`SQL_EXECUTION_AGENT_RESOURCE`, and the domain-agent resource env vars are set
-automatically by this script — you don't need to configure them yourself.
+the log.
 
 **Terminal 2 — ADK dev UI:**
 
 ```bash
-export VERTEX_API_BASE=http://127.0.0.1:8001
+set -a; source infra/local_server/local.env; set +a
 adk web infra/agents
 ```
 
-Open http://localhost:8000, pick `spend_iq_agent`, and ask a question (e.g.
-"top 5 suppliers by spend this quarter").
+`VERTEX_API_BASE` in `local.env` points at `127.0.0.1:8001` (Terminal 1), so
+`adk web` (on 8000) delegates to the backend. Open http://localhost:8000, pick
+`spend_iq_agent`, and ask a question (e.g. "top 5 suppliers by spend this quarter").
+
+> On Windows PowerShell, `source` isn't available. Either run under Git Bash /
+> WSL, or load the file with:
+> `Get-Content infra/local_server/local.env | ForEach-Object { if ($_ -and $_ -notmatch '^#') { $k,$v = $_.split('=',2); Set-Item "env:$k" $v } }`
 
 ## How it works
 
